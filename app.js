@@ -3,11 +3,12 @@ const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv").config();
 const { Deepgram } = require("@deepgram/sdk");
+const TextModel = require("./resources/Text/text.model");
 
 // Instances
 const app = express();
 
-const mimetype = 'audio/mpeg';
+const mimetype = "audio/mpeg";
 
 // Middlewares
 app.use(express.json({ limit: "50mb" }));
@@ -19,6 +20,7 @@ const deepgramApiKey = process.env.DEEP_GRAM_API_KEY;
 // Initializes the Deepgram SDK
 const deepgram = new Deepgram(deepgramApiKey);
 
+// Connect to the database
 mongoose
     .connect(process.env.MONGO_DB_URI, {
         useNewUrlParser: true,
@@ -30,24 +32,58 @@ mongoose
     })
     .catch((err) => console.log(err));
 
-// Proxy request
+
+// Transform from speech to text
 app.post("/request/speech2text", (req, res) => {
 
-  const audioBuffer = Buffer.from(req.body.buffer.data, 'binary');
+    // Take user id
+    const userid = req.body.userid;
+
+    // Use deepgram to convert from audio to text
+    const audioBuffer = Buffer.from(req.body.buffer.data, "binary");
     deepgram.transcription
         .preRecorded(
             { buffer: audioBuffer, mimetype },
             { punctuate: true, language: "en-US" }
         )
         .then((transcription) => {
-            console.dir(transcription, { depth: null });
+
+            // Extract the transcript
+            const extractedText =
+                transcription.results.channels[0].alternatives[0].transcript;
+
+            // Save to database
+            const text = new TextModel({
+                textContent: extractedText,
+                userID: userid,
+            });
+
+            // Save instance to mongoDB
+            text.save()
+                .then((text) => {
+                    return res.status(200).send({
+                        success: true,
+                        message: "Text created successfully.",
+                        text: {
+                            id: text._id,
+                            userID: text.userID,
+                        },
+                    });
+                })
+                .catch((err) => {
+                    return res.status(500).send({
+                        success: false,
+                        message: "Something went wrong",
+                        error: err,
+                    });
+                });
         })
         .catch((err) => {
-            console.log(err);
+            res.status(500).send({
+                success: false,
+                message: "Something went wrong",
+                error: err,
+            });
         });
-
-    return res.status(200).send({
-        success: "true",
-    });
 });
 
