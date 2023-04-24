@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv").config();
 const { Deepgram } = require("@deepgram/sdk");
 const TextModel = require("./resources/Text/text.model");
+const morgan = require("morgan");
 
 // Instances
 const app = express();
@@ -11,6 +12,8 @@ const app = express();
 const mimetype = "audio/mpeg";
 
 // Middlewares
+app.use(morgan("combined")); //Logging
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb" }));
 
